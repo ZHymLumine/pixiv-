@@ -1,0 +1,99 @@
+import requests
+import re
+import os
+import datetime
+import pandas as pd
+from datetime import datetime
+
+
+# 取得pixiv排名网页
+def get_original_html_text(url, headers):
+    try:
+        r = requests.get(url, headers=headers)
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding
+        return r.text
+    except:
+        print("爬取失败")
+        return ""
+
+
+# 从排名网页中取得图片url
+def get_pictures_urls(html):
+    urls = re.findall(
+        '<img src=".*?"alt=".*?"class=".*?"data-filter=".*?"data-src="(.*?)"data-type=".*?"data-id=".*?"data-tags=".*?"data-user-id=".*?">',
+        html)
+
+# 处理图片url
+    pictures_urls = []
+    for url in urls:
+        pictures_url = re.sub('/c/240x480', '', url)
+        pictures_urls.append(pictures_url)
+    return pictures_urls
+
+
+# 保存图片
+def download_pictures(pictures_urls, headers, root, usable_date_list):
+    try:
+        dir_path = root + '/' + usable_date_list
+        if not os.path.exists(root):
+            os.mkdir(root)
+
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+            for pictures_url in pictures_urls:
+                file_name = pictures_url.split('/')[-1]
+                picture_path = dir_path + '/' + file_name
+                if not os.path.exists(picture_path):
+                    r = requests.get(pictures_url, headers=headers)
+                    with open(picture_path, 'wb') as f:
+                        f.write(r.content)
+                else:
+                    print("图片已存在")
+        else:
+            print("本日图片已保存 " + usable_date_list)
+    except:
+        print("保存失败")
+
+
+# 取得日期字符串列表
+def get_date_lists(beginDate, endDate):
+    # beginDate, endDate是形如‘20160601’的字符串或datetime格式
+    date_l = [datetime.strftime(x, '%Y-%m-%d') for x in list(pd.date_range(start=beginDate, end=endDate))]
+    return date_l
+
+
+# 处理日期列表（符合pixiv规律）
+def process_date_dates(date_lists):
+    new_date_lists = []
+    for date_list in date_lists:
+        new_date_list = re.sub('-', '', date_list)
+        new_date_lists.append(new_date_list)
+    return new_date_lists
+
+
+if __name__ == '__main__':
+    root = "D:\pixiv_pictures"
+    beginDate = '20200401'
+    endDate = '20200403'
+    headers = {
+        'authority': 'pixon.ads-pixiv.net',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36',
+        'sec-fetch-dest': 'iframe',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'referer': 'https://www.pixiv.net/',
+        'accept-language': 'zh-CN,zh;q=0.9,ja;q=0.8',
+    }
+
+    date_lists = get_date_lists(beginDate, endDate)
+    usable_date_lists = process_date_dates(date_lists)
+    for usable_date_list in usable_date_lists:
+        url = 'https://www.pixiv.net/ranking.php?mode=daily&content=illust&date='
+        url = url + usable_date_list
+        html = get_original_html_text(url, headers)
+        pictures_urls = get_pictures_urls(html)
+        download_pictures(pictures_urls, headers, root, usable_date_list)
+

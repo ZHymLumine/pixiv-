@@ -20,15 +20,15 @@ def get_original_html_text(url, headers):
 
 # 从排名网页中取得图片url
 def get_pictures_urls(html):
-    urls = re.findall(
-        '<img src=".*?"alt=".*?"class=".*?"data-filter=".*?"data-src="(.*?)"data-type=".*?"data-id=".*?"data-tags=".*?"data-user-id=".*?">',
-        html)
+    urls = re.findall('"url":"(.*?)"', html)
 
 # 处理图片url
     pictures_urls = []
     for url in urls:
-        pictures_url = re.sub('/c/240x480', '', url)
+        pictures_url = re.sub('\\\\', '', url)
+        pictures_url = re.sub('/c/240x480', '', pictures_url)
         pictures_urls.append(pictures_url)
+
     return pictures_urls
 
 
@@ -41,17 +41,16 @@ def download_pictures(pictures_urls, headers, root, usable_date_list):
 
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
-            for pictures_url in pictures_urls:
-                file_name = pictures_url.split('/')[-1]
-                picture_path = dir_path + '/' + file_name
-                if not os.path.exists(picture_path):
-                    r = requests.get(pictures_url, headers=headers)
-                    with open(picture_path, 'wb') as f:
-                        f.write(r.content)
-                else:
-                    print("图片已存在")
-        else:
-            print("本日图片已保存 " + usable_date_list)
+        for pictures_url in pictures_urls:
+            file_name = pictures_url.split('/')[-1]
+            picture_path = dir_path + '/' + file_name
+            if not os.path.exists(picture_path):
+                r = requests.get(pictures_url, headers=headers)
+                with open(picture_path, 'wb') as f:
+                    f.write(r.content)
+            else:
+                print("图片已存在")
+
     except:
         print("保存失败")
 
@@ -74,8 +73,8 @@ def process_date_dates(date_lists):
 
 if __name__ == '__main__':
     root = "D:\pixiv_pictures"
-    beginDate = '20200401'
-    endDate = '20200403'
+    beginDate = ''  # 开始日期 输入你想爬取的开始和结束日期
+    endDate = ''    # 结束日期
     headers = {
         'authority': 'pixon.ads-pixiv.net',
         'upgrade-insecure-requests': '1',
@@ -90,10 +89,12 @@ if __name__ == '__main__':
 
     date_lists = get_date_lists(beginDate, endDate)
     usable_date_lists = process_date_dates(date_lists)
+    end_page = '' # 爬取页数 （输入你想爬取的页数(int类型)） 
     for usable_date_list in usable_date_lists:
-        url = 'https://www.pixiv.net/ranking.php?mode=daily&content=illust&date='
-        url = url + usable_date_list
-        html = get_original_html_text(url, headers)
-        pictures_urls = get_pictures_urls(html)
-        download_pictures(pictures_urls, headers, root, usable_date_list)
+        for page in range(1, end_page + 1):
+            url = 'https://www.pixiv.net/ranking.php?mode=daily&content=illust&date=' + \
+                  usable_date_list + '&p=' + str(page) + '&format=json'
+            html = get_original_html_text(url, headers)
+            pictures_urls = get_pictures_urls(html)
+            download_pictures(pictures_urls, headers, root, usable_date_list)
 
